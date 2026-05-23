@@ -222,12 +222,13 @@ def run_tsp_comparison(*, n: int, seed: int = 42, coords: Optional[List] = None,
     results = []
 
     # BT
-    _log("🔁 [1/5] Starting Backtracking...")
-    t0 = time.perf_counter()
-    bt_route, bt_cost = rezolva_tsp_backtracking(n, dist)
-    bt_dur = time.perf_counter() - t0
+    BKT_COMP_TIME = 120.0
+    _log(f"🔁 [1/5] Starting Backtracking (min {BKT_COMP_TIME:.0f}s)...")
+    bt_route, bt_cost, bt_nsol, bt_dur = rezolva_tsp_backtracking_extins(
+        n, dist, mod="timp", timp_max=BKT_COMP_TIME,
+    )
     results.append(("Backtracking", bt_cost, bt_dur, bt_route))
-    _log(f"   ✔️ Backtracking — cost={bt_cost:.2f}, time={bt_dur:.4f}s")
+    _log(f"   ✔️ Backtracking — cost={bt_cost:.2f}, {bt_nsol} solutions, time={bt_dur:.2f}s")
 
     # HC
     _log("🏔️ [2/5] Starting Hill Climbing (restarts=10, iterations=1500)...")

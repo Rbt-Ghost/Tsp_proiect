@@ -113,6 +113,11 @@ st.markdown(
         box-shadow: 0 10px 30px rgba(0,0,0,0.25);
       }
 
+      /* Default vertical spacing between Streamlit elements */
+      div[data-testid="stVerticalBlock"] {
+        gap: 0.85rem;
+      }
+
       /* Inputs/buttons rounding */
       button[kind="primary"] { border-radius: 12px; }
       .stButton > button { border-radius: 12px; }
@@ -424,6 +429,49 @@ def _tsp_params_ui(algo: str, *, n: int) -> dict:
 
 
 # --------------------
+# Scrollable log box helper
+# --------------------
+
+def _make_log_box():
+    """Return a log_fn that renders all messages in a fixed-height (50 px max)
+    scrollable box. Auto-scroll to bottom is achieved via CSS
+    flex-direction:column-reverse — no JavaScript required.
+    Each call to the returned function appends a message and re-renders the box.
+    """
+    placeholder = st.empty()
+    messages: list = []
+
+    def _log(msg: str) -> None:
+        messages.append(str(msg))
+        # Reverse the list so newest message = index-0 in a column-reverse flex,
+        # which means it sits at the visual bottom and is always visible.
+        rows = "".join(
+            f'<div style="padding:1px 0;white-space:pre-wrap;word-break:break-word;">{m}</div>'
+            for m in reversed(messages)
+        )
+        placeholder.markdown(
+            f"""<div style="
+                max-height:50px;
+                overflow-y:auto;
+                display:flex;
+                flex-direction:column-reverse;
+                background:rgba(0,0,0,0.28);
+                border:1px solid rgba(255,255,255,0.08);
+                border-radius:8px;
+                padding:4px 10px;
+                font-family:'Courier New',monospace;
+                font-size:11px;
+                color:#cdd6f4;
+                line-height:1.5;
+                box-sizing:border-box;
+            ">{rows}</div>""",
+            unsafe_allow_html=True,
+        )
+
+    return _log
+
+
+# --------------------
 # TSP / NLP tabs
 # --------------------
 tab_tsp, tab_nlp = st.tabs(["🗺️ TSP", "📝 NLP"])
@@ -473,7 +521,8 @@ with tab_tsp:
                 st.markdown(
                     f"""
                     <div style="background:rgba(99,102,241,0.13);border:1px solid rgba(99,102,241,0.35);
-                                border-radius:10px;padding:0.7rem 1rem;font-size:0.88rem;line-height:1.7;">
+                                border-radius:10px;padding:0.85rem 1.1rem;margin:0.6rem 0;
+                                font-size:0.88rem;line-height:1.7;">
                       <b>Input data:</b> Predefined instance (TSPLIB)<br>
                       <b>Instance:</b> {inst.name}<br>
                       <b>Number of cities (N):</b> {n}<br>
@@ -487,7 +536,8 @@ with tab_tsp:
                 st.markdown(
                     f"""
                     <div style="background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);
-                                border-radius:10px;padding:0.7rem 1rem;font-size:0.88rem;line-height:1.7;">
+                                border-radius:10px;padding:0.85rem 1.1rem;margin:0.6rem 0;
+                                font-size:0.88rem;line-height:1.7;">
                       <b>Input data:</b> Random generation<br>
                       <b>Distribution mode:</b> {gen_mode}<br>
                       <b>Number of cities (N):</b> {n}<br>
@@ -509,6 +559,7 @@ with tab_tsp:
                     st.session_state["tsp_matrix"] = _format_dist_matrix(tsp_coords)
 
                 with st.status("⚙️ Running algorithm...", expanded=True) as status:
+                    _log = _make_log_box()
 
                     def _bkt_progress(elapsed: float, remaining: float, nr_sol: int, best: int) -> None:
                         status.update(
@@ -518,18 +569,19 @@ with tab_tsp:
                                 f"current cost: {best}"
                             ),
                             state="running",
+                            expanded=True,
                         )
 
                     res = run_tsp(
                         algo, n=n, seed=int(seed),
-                        log_fn=st.write,
+                        log_fn=_log,
                         progress_fn=_bkt_progress,
                         **params,
                     )
                     status.update(
                         label=f"✅ Done — Cost: {res['cost']:.3f} | Time: {res['duration_s']:.4f}s",
                         state="complete",
-                        expanded=False,
+                        expanded=True,
                     )
 
                 m1, m2 = st.columns(2)
@@ -611,7 +663,8 @@ with tab_tsp:
             st.markdown(
                 f"""
                 <div style="background:rgba(99,102,241,0.13);border:1px solid rgba(99,102,241,0.35);
-                            border-radius:10px;padding:0.7rem 1rem;font-size:0.88rem;line-height:1.7;">
+                            border-radius:10px;padding:0.85rem 1.1rem;margin:0.6rem 0;
+                            font-size:0.88rem;line-height:1.7;">
                   <b>Input data:</b> Predefined instance (TSPLIB)<br>
                   <b>Instance:</b> {comp_inst.name}<br>
                   <b>Number of cities (N):</b> {comp_n}<br>
@@ -625,7 +678,8 @@ with tab_tsp:
             st.markdown(
                 f"""
                 <div style="background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);
-                            border-radius:10px;padding:0.7rem 1rem;font-size:0.88rem;line-height:1.7;">
+                            border-radius:10px;padding:0.85rem 1.1rem;margin:0.6rem 0;
+                            font-size:0.88rem;line-height:1.7;">
                   <b>Input data:</b> Random generation<br>
                   <b>Distribution mode:</b> {comp_gen_mode}<br>
                   <b>Number of cities (N):</b> {comp_n}<br>
@@ -641,14 +695,15 @@ with tab_tsp:
                 st.session_state["comp_matrix"] = _format_dist_matrix(comp_coords)
 
             with st.status("⚙️ Comparing algorithms...", expanded=True) as comp_status:
+                _log_comp = _make_log_box()
                 comp = run_tsp_comparison(
                     n=int(comp_n), seed=int(comp_seed), coords=comp_coords.tolist(),
-                    log_fn=st.write,
+                    log_fn=_log_comp,
                 )
                 comp_status.update(
                     label=f"✅ Comparison complete — Winner: {comp['best']}",
                     state="complete",
-                    expanded=False,
+                    expanded=True,
                 )
 
             col_1, col_2 = st.columns([1, 1])
@@ -729,7 +784,8 @@ with tab_nlp:
             st.markdown(
                 f"""
                 <div style="background:rgba(99,102,241,0.13);border:1px solid rgba(99,102,241,0.35);
-                            border-radius:10px;padding:0.75rem 1rem;font-size:0.88rem;line-height:1.8;">
+                            border-radius:10px;padding:0.85rem 1.1rem;margin:0.6rem 0;
+                            font-size:0.88rem;line-height:1.8;">
                   <b>Dataset:</b> {dataset}<br>
                   <b>Description:</b> {meta.get('desc', '—')}<br>
                   <b>Classes:</b> {meta.get('n_classes', '?')}&nbsp;&nbsp;
@@ -739,7 +795,7 @@ with tab_nlp:
                   <b>ngram_range:</b> {ngram_display}&nbsp;&nbsp;
                   <b>max_features:</b> {mf_display}&nbsp;&nbsp;
                   <b>Seed:</b> {int(seed)}<br>
-                  <div style="margin-top:0.4rem;"><b>Classes:</b><br>{classes_list}</div>
+                  <div style="margin-top:0.5rem;"><b>Classes:</b><br>{classes_list}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -797,20 +853,22 @@ with tab_nlp:
 
             if btn_all:
                 with st.status("⚙️ Running all tasks (1–5)…", expanded=True) as nlp_status_all:
+                    _log_nlp = _make_log_box()
                     for task_id in [1, 2, 3, 4, 5]:
-                        st.write(f"▶️ Task {task_id}/5…")
+                        _log_nlp(f"▶️ Task {task_id}/5…")
                         res = run_lab10_task(
                             task_id=task_id, dataset=dataset,
-                            no_plots=no_plots, seed=int(seed), log_fn=st.write,
+                            no_plots=no_plots, seed=int(seed), log_fn=_log_nlp,
                         )
                         _render_result(res)
                     nlp_status_all.update(
-                        label="✅ All tasks complete!", state="complete", expanded=False
+                        label="✅ All tasks complete!", state="complete", expanded=True
                     )
 
             elif btn_run:
                 task_id = mapping[algo_choice]
                 with st.status(f"⚙️ Running: {algo_choice}…", expanded=True) as nlp_status:
+                    _log_nlp = _make_log_box()
                     if task_id == 1:
                         res = run_nlp_experiment(
                             dataset=dataset,
@@ -819,17 +877,17 @@ with tab_nlp:
                             max_features=max_features,
                             no_plots=no_plots,
                             seed=int(seed),
-                            log_fn=st.write,
+                            log_fn=_log_nlp,
                         )
                         res = {**res, "task": 1}
                     else:
                         res = run_lab10_task(
                             task_id=task_id, dataset=dataset,
-                            no_plots=no_plots, seed=int(seed), log_fn=st.write,
+                            no_plots=no_plots, seed=int(seed), log_fn=_log_nlp,
                         )
                     acc = res.get("accuracy") or res.get("best_accuracy")
                     label = f"✅ Done — Accuracy: {acc:.4f}" if acc else "✅ Done!"
-                    nlp_status.update(label=label, state="complete", expanded=False)
+                    nlp_status.update(label=label, state="complete", expanded=True)
                 _render_result(res)
 
 # ---------------

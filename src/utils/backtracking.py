@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import time
 import heapq
 from typing import List, Optional, Tuple
@@ -129,10 +130,6 @@ def rezolva_tsp_backtracking_extins(
 	deadline = (start_time + float(timp_max)) if mod == "timp" and timp_max is not None else None
 
 	if n == 1:
-		if mod == "timp" and deadline is not None:
-			remaining = deadline - time.perf_counter()
-			if remaining > 0:
-				time.sleep(remaining)
 		duration = time.perf_counter() - start_time
 		return [0], 0, 1, duration
 
@@ -144,6 +141,10 @@ def rezolva_tsp_backtracking_extins(
 	visited = [False] * n
 	visited[0] = True
 	route = [0]
+
+	# Ordinea in care backtrack exploreaza orasele urmatoare.
+	# La restart se amesteca (shuffle) pentru a explora ramuri diferite.
+	city_order = list(range(1, n))
 
 	nr_solutii = [0]
 	oprire = [False]
@@ -185,7 +186,7 @@ def rezolva_tsp_backtracking_extins(
 				return
 			return
 
-		for next_city in range(1, n):
+		for next_city in city_order:
 			if visited[next_city]:
 				continue
 
@@ -202,12 +203,18 @@ def rezolva_tsp_backtracking_extins(
 			if oprire[0]:
 				return
 
+	# --- Prima rulare (ordine naturala) ---
 	backtrack(0, 0)
 
-	# For "timp" mode: if tree exhausted before deadline, restart and keep searching
+	# --- Restart-uri cu ordine randomizata pana la deadline ---
+	# Fiecare restart amesteca ordinea de explorare a oraselor,
+	# astfel branch-and-bound taie ramuri diferite si poate gasi
+	# solutii mai bune. best_cost / best_route se pastreaza intre rulari.
 	if mod == "timp" and deadline is not None:
+		rng = random.Random(42)
 		while not timp_expirat():
 			oprire[0] = False
+			rng.shuffle(city_order)
 			for i in range(n):
 				visited[i] = False
 			visited[0] = True
