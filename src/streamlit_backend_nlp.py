@@ -50,7 +50,16 @@ def run_lab10_model(
     max_features: Optional[int],
     no_plots: bool,
     title_prefix: str,
+    log_fn=None,
 ) -> Dict[str, Any]:
+    def _log(msg: str) -> None:
+        if log_fn is not None:
+            log_fn(msg)
+
+    clf_name = type(clf).__name__
+    mf_str = str(max_features) if max_features is not None else "all"
+    _log(f"🔧 Pipeline: TF-IDF(ngram={ngram_range}, max_features={mf_str}) → {clf_name}")
+
     pipeline = Pipeline(
         [
             (
@@ -66,17 +75,22 @@ def run_lab10_model(
         ]
     )
 
+    _log(f"⏳ Training on {len(train.data):,} documents...")
     start = time.time()
     pipeline.fit(train.data, train.target)
     duration_s = time.time() - start
+    _log(f"   Training complete — {duration_s:.2f}s")
 
+    _log(f"📊 Predicting on {len(test.data):,} test documents...")
     pred = pipeline.predict(test.data)
     acc = accuracy_score(test.target, pred)
     report = classification_report(test.target, pred, target_names=train.target_names)
     cm = confusion_matrix(test.target, pred)
+    _log(f"✔️ Accuracy: {acc:.4f}")
 
     fig_cm = None
     if not no_plots:
+        _log("📈 Generating confusion matrix...")
         fig, ax = plt.subplots(figsize=(8, 6))
         ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=train.target_names).plot(
             ax=ax, cmap="Blues", colorbar=True, values_format="d"
@@ -121,28 +135,28 @@ def run_lab10_task(
     dataset: str,
     no_plots: bool,
     seed: int,
+    log_fn=None,
 ) -> Dict[str, Any]:
-    """Run Lab10 NLP tasks 1..5 for the UI.
+    """Run Lab10 NLP tasks 1..5 for the UI."""
 
-    dataset is mapped to the same categories as in the lab scripts.
-    """
+    def _log(msg: str) -> None:
+        if log_fn is not None:
+            log_fn(msg)
 
+    _log(f"📂 Loading dataset ‘{dataset}’...")
     train, test = _load_20newsgroups(dataset)
+    _log(f"✔️ {len(train.data):,} training docs | {len(test.data):,} test docs | {len(train.target_names)} classes")
 
-    # Task 1: Naive Bayes + TF-IDF with implied parameters:
-    # ngram_range=(1,1), max_features=None, stop_words='english', sublinear_tf=True
+    # Task 1: Naive Bayes + TF-IDF
     if task_id == 1:
+        _log("🔬 Task 1 — Naive Bayes with default TF-IDF")
         return run_lab10_model(
-            train=train,
-            test=test,
-            clf=MultinomialNB(),
-            ngram_range=(1, 1),
-            max_features=None,
-            no_plots=no_plots,
-            title_prefix="NaiveBayes",
+            train=train, test=test, clf=MultinomialNB(),
+            ngram_range=(1, 1), max_features=None,
+            no_plots=no_plots, title_prefix="NaiveBayes", log_fn=log_fn,
         )
 
-    # Task 2: compare classifiers (NB, LinearSVC, LogisticRegression, RandomForest)
+    # Task 2: compare classifiers
     if task_id == 2:
         classifiers = {
             "Naive Bayes": MultinomialNB(),
@@ -150,21 +164,18 @@ def run_lab10_task(
             "LogisticRegression": LogisticRegression(max_iter=1000, solver="saga"),
             "RandomForest": RandomForestClassifier(n_estimators=100, n_jobs=-1, random_state=seed),
         }
-
+        total = len(classifiers)
         table = []
         best = None
         best_name = None
         best_res = None
 
-        for name, clf in classifiers.items():
+        for idx, (name, clf) in enumerate(classifiers.items(), 1):
+            _log(f"🔬 [{idx}/{total}] Training {name}...")
             res = run_lab10_model(
-                train=train,
-                test=test,
-                clf=clf,
-                ngram_range=(1, 1),
-                max_features=None,
-                no_plots=no_plots,
-                title_prefix=name,
+                train=train, test=test, clf=clf,
+                ngram_range=(1, 1), max_features=None,
+                no_plots=no_plots, title_prefix=name, log_fn=log_fn,
             )
             table.append({"Model": name, "Accuracy": res["accuracy"], "Time_s": res["duration_s"]})
             if best is None or res["accuracy"] > best:
@@ -172,40 +183,32 @@ def run_lab10_task(
                 best_name = name
                 best_res = res
 
-        # best plot already available if no_plots=False
+        _log(f"🏆 Winner: {best_name} — accuracy={best:.4f}")
         plot_cm = best_res.get("plot_cm") if best_res is not None else None
         report = best_res.get("report") if best_res is not None else ""
         cm = best_res.get("cm") if best_res is not None else None
-
-        # for UI: return table + best confusion matrix
         return {
-            "task": 2,
-            "table": table,
-            "best": best_name,
+            "task": 2, "table": table, "best": best_name,
             "best_accuracy": float(best) if best is not None else None,
-            "plot_cm": plot_cm,
-            "report": report,
-            "cm": cm,
+            "plot_cm": plot_cm, "report": report, "cm": cm,
         }
 
     # Task 3: study ngram_range (SVM)
     if task_id == 3:
         configs = [(1, 1), (1, 2), (2, 2), (1, 3)]
         rows = []
-        for ng in configs:
+        for idx, ng in enumerate(configs, 1):
+            _log(f"📐 [{idx}/{len(configs)}] SVM with ngram_range={ng}...")
             res = run_lab10_model(
-                train=train,
-                test=test,
-                clf=LinearSVC(max_iter=2000),
-                ngram_range=ng,
-                max_features=None,
-                no_plots=True,  # keep it light; we’ll show bar only
-                title_prefix=f"SVM_ngram_{ng}",
+                train=train, test=test, clf=LinearSVC(max_iter=2000),
+                ngram_range=ng, max_features=None,
+                no_plots=True, title_prefix=f"SVM_ngram_{ng}", log_fn=log_fn,
             )
             rows.append({"ngram_range": str(ng), "Accuracy": res["accuracy"], "Time_s": res["duration_s"]})
 
         fig = None
         if not no_plots:
+            _log("📈 Generating graph for ngram_range...")
             fig, ax = plt.subplots(figsize=(8, 5))
             labels = [r["ngram_range"] for r in rows]
             accs = [r["Accuracy"] for r in rows]
@@ -214,7 +217,7 @@ def run_lab10_task(
             ax.set_ylim(0, 1.05)
             ax.set_ylabel("Accuracy")
             ax.set_xlabel("ngram_range")
-            ax.set_title("Influența ngram_range (SVM)")
+            ax.set_title("Impact of ngram_range (SVM)")
             for bar, val in zip(bars, accs):
                 ax.text(bar.get_x() + bar.get_width() / 2, val + 0.01, f"{val:.3f}", ha="center", va="bottom", fontsize=10)
             plt.xticks(rotation=30, ha="right")
@@ -222,25 +225,23 @@ def run_lab10_task(
 
         return {"task": 3, "table": rows, "plot": fig}
 
-    # Task 4: study max_features (SVM, ngram_range=(1,1))
+    # Task 4: study max_features (SVM)
     if task_id == 4:
         values = [100, 500, 1000, 5000, 10000, None]
         rows = []
-        for mf in values:
-            label = str(mf) if mf is not None else "toate"
+        for idx, mf in enumerate(values, 1):
+            label = str(mf) if mf is not None else "all"
+            _log(f"📐 [{idx}/{len(values)}] SVM with max_features={label}...")
             res = run_lab10_model(
-                train=train,
-                test=test,
-                clf=LinearSVC(max_iter=2000),
-                ngram_range=(1, 1),
-                max_features=mf,
-                no_plots=True,
-                title_prefix=f"SVM_mf_{label}",
+                train=train, test=test, clf=LinearSVC(max_iter=2000),
+                ngram_range=(1, 1), max_features=mf,
+                no_plots=True, title_prefix=f"SVM_mf_{label}", log_fn=log_fn,
             )
             rows.append({"max_features": label, "Accuracy": res["accuracy"], "Time_s": res["duration_s"]})
 
         fig = None
         if not no_plots:
+            _log("📈 Generating graph for max_features...")
             fig, ax = plt.subplots(figsize=(8, 5))
             labels = [r["max_features"] for r in rows]
             accs = [r["Accuracy"] for r in rows]
@@ -249,7 +250,7 @@ def run_lab10_task(
             ax.set_ylim(0, 1.05)
             ax.set_ylabel("Accuracy")
             ax.set_xlabel("max_features")
-            ax.set_title("Influența max_features (SVM)")
+            ax.set_title("Impact of max_features (SVM)")
             for bar, val in zip(bars, accs):
                 ax.text(bar.get_x() + bar.get_width() / 2, val + 0.01, f"{val:.3f}", ha="center", va="bottom", fontsize=10)
             plt.xticks(rotation=30, ha="right")
@@ -257,56 +258,45 @@ def run_lab10_task(
 
         return {"task": 4, "table": rows, "plot": fig}
 
-    # Task 5 (optional): grid ngram × max_features (SVM)
+    # Task 5: grid ngram × max_features (SVM)
     if task_id == 5:
         try:
             import seaborn as sns
         except ImportError:
-            return {
-                "task": 5,
-                "error": "seaborn is not installed; cannot render heatmap.",
-                "heatmap": None,
-            }
+            return {"task": 5, "error": "seaborn is not installed; cannot render heatmap.", "heatmap": None}
 
         ngrams = [(1, 1), (1, 2), (1, 3)]
         features = [500, 2000, 5000, 10000]
         data = np.zeros((len(ngrams), len(features)))
+        total_combos = len(ngrams) * len(features)
+        combo = 0
 
         for i, ng in enumerate(ngrams):
             for j, mf in enumerate(features):
+                combo += 1
+                _log(f"🔲 [{combo}/{total_combos}] Grid: ngram={ng}, max_features={mf}...")
                 res = run_lab10_model(
-                    train=train,
-                    test=test,
-                    clf=LinearSVC(max_iter=2000),
-                    ngram_range=ng,
-                    max_features=mf,
-                    no_plots=True,
-                    title_prefix=f"grid_{ng}_{mf}",
+                    train=train, test=test, clf=LinearSVC(max_iter=2000),
+                    ngram_range=ng, max_features=mf,
+                    no_plots=True, title_prefix=f"grid_{ng}_{mf}", log_fn=log_fn,
                 )
                 data[i, j] = res["accuracy"]
 
         fig = None
         if not no_plots:
+            _log("📈 Generating heatmap grid...")
             fig, ax = plt.subplots(figsize=(8, 5))
             sns.heatmap(
-                data,
-                annot=True,
-                fmt=".3f",
-                cmap="YlOrRd",
-                xticklabels=features,
-                yticklabels=[str(ng) for ng in ngrams],
-                ax=ax,
+                data, annot=True, fmt=".3f", cmap="YlOrRd",
+                xticklabels=features, yticklabels=[str(ng) for ng in ngrams], ax=ax,
             )
             ax.set_xlabel("max_features")
             ax.set_ylabel("ngram_range")
-            ax.set_title("Acuratețe (SVM) – Grid ngram × max_features")
+            ax.set_title("Accuracy (SVM) – Grid ngram × max_features")
             plt.tight_layout()
 
-        return {
-            "task": 5,
-            "heatmap": fig,
-            "table": {"ngrams": ngrams, "features": features, "data": data.tolist()},
-        }
+        _log("✅ Grid search finished!")
+        return {"task": 5, "heatmap": fig, "table": {"ngrams": ngrams, "features": features, "data": data.tolist()}}
 
     raise ValueError(f"Unknown task_id: {task_id}")
 
@@ -319,9 +309,15 @@ def run_nlp_experiment(
     max_features: Optional[int],
     no_plots: bool = False,
     seed: int = 42,
+    log_fn=None,
 ) -> Dict[str, Any]:
-    # kept for compatibility with the existing Streamlit NLP page
+    def _log(msg: str) -> None:
+        if log_fn is not None:
+            log_fn(msg)
+
+    _log(f"📂 Loading dataset '{dataset}'...")
     train, test = _load_20newsgroups(dataset)
+    _log(f"✔️ {len(train.data):,} training docs | {len(test.data):,} test docs | {len(train.target_names)} classes")
 
     if model_name == "Naive Bayes":
         clf = MultinomialNB()
@@ -338,14 +334,11 @@ def run_nlp_experiment(
     else:
         raise ValueError(f"Unknown model_name: {model_name}")
 
+    _log(f"🔬 Selected model: {model_name}")
     return run_lab10_model(
-        train=train,
-        test=test,
-        clf=clf,
-        ngram_range=ngram_range,
-        max_features=max_features,
-        no_plots=no_plots,
-        title_prefix=title,
+        train=train, test=test, clf=clf,
+        ngram_range=ngram_range, max_features=max_features,
+        no_plots=no_plots, title_prefix=title, log_fn=log_fn,
     )
 
 

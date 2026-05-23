@@ -89,6 +89,7 @@ def rezolva_tsp_backtracking_extins(
 	mod: ModOprire = "toate",
 	timp_max: float | None = None,
 	y_max: int | None = None,
+	progress_fn=None,
 ) -> Tuple[List[int], int, int, float]:
 	"""Rezolva TSP prin backtracking cu moduri configurabile de oprire.
 
@@ -128,6 +129,10 @@ def rezolva_tsp_backtracking_extins(
 	deadline = (start_time + float(timp_max)) if mod == "timp" and timp_max is not None else None
 
 	if n == 1:
+		if mod == "timp" and deadline is not None:
+			remaining = deadline - time.perf_counter()
+			if remaining > 0:
+				time.sleep(remaining)
 		duration = time.perf_counter() - start_time
 		return [0], 0, 1, duration
 
@@ -142,6 +147,8 @@ def rezolva_tsp_backtracking_extins(
 
 	nr_solutii = [0]
 	oprire = [False]
+	call_count = [0]
+	last_progress_time = [start_time]
 
 	def timp_expirat() -> bool:
 		return deadline is not None and time.perf_counter() >= deadline
@@ -152,6 +159,16 @@ def rezolva_tsp_backtracking_extins(
 		if deadline is not None and timp_expirat():
 			oprire[0] = True
 			return
+
+		# Raportare progres aproximativ o data pe secunda
+		call_count[0] += 1
+		if progress_fn is not None and call_count[0] % 20_000 == 0:
+			now = time.perf_counter()
+			if now - last_progress_time[0] >= 1.0:
+				last_progress_time[0] = now
+				elapsed = now - start_time
+				remaining = max(0.0, float(timp_max or 0) - elapsed)
+				progress_fn(elapsed, remaining, nr_solutii[0], best_cost[0])
 
 		if len(route) == n:
 			nr_solutii[0] += 1
@@ -186,6 +203,18 @@ def rezolva_tsp_backtracking_extins(
 				return
 
 	backtrack(0, 0)
+
+	# For "timp" mode: if tree exhausted before deadline, restart and keep searching
+	if mod == "timp" and deadline is not None:
+		while not timp_expirat():
+			oprire[0] = False
+			for i in range(n):
+				visited[i] = False
+			visited[0] = True
+			route.clear()
+			route.append(0)
+			backtrack(0, 0)
+
 	duration = time.perf_counter() - start_time
 	return best_route, int(best_cost[0]), int(nr_solutii[0]), duration
 

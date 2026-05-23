@@ -1,13 +1,35 @@
 import base64
+
+import numpy as np
 import streamlit as st
 
 from src.streamlit_backend import tsp_algos, run_tsp, run_tsp_comparison
 from src.streamlit_backend_nlp import run_nlp_experiment, run_lab10_task
-
+from src.tsp_instances import INSTANCES
+SVG_ICON = (
+    "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC"
+    "9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0Ij48ZyBzdH"
+    "Jva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bm"
+    "QiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIG9wYWNpdHk9IjAuNiI+PGxpbmUgeDE9IjIyIi"
+    "B5MT0iMjAiIHgyPSIxNCIgeTI9IjMyIi8+PGxpbmUgeDE9IjE0IiB5MT0iMzIiIHgyPSIyNC"
+    "IgeTI9IjQ0Ii8+PGxpbmUgeDE9IjI0IiB5MT0iNDQiIHgyPSIzMiIgeTI9IjMyIi8+PGxpbm"
+    "UgeDE9IjMyIiB5MT0iMzIiIHgyPSIyMiIgeTI9IjIwIi8+PGxpbmUgeDE9IjIyIiB5MT0iMj"
+    "AiIHgyPSIyNCIgeTI9IjQ0Ii8+PGxpbmUgeDE9IjQyIiB5MT0iMjAiIHgyPSI1MCIgeTI9Ij"
+    "MyIi8+PGxpbmUgeDE9IjUwIiB5MT0iMzIiIHgyPSI0MCIgeTI9IjQ0Ii8+PGxpbmUgeDE9Ij"
+    "QwIiB5MT0iNDQiIHgyPSIzMiIgeTI9IjMyIi8+PGxpbmUgeDE9IjMyIiB5MT0iMzIiIHgyPS"
+    "I0MiIgeTI9IjIwIi8+PGxpbmUgeDE9IjQyIiB5MT0iMjAiIHgyPSI0MCIgeTI9IjQ0Ii8+PC"
+    "9nPjxnIGZpbGw9IiNmZmZmZmYiIG9wYWNpdHk9IjAuOSI+PGNpcmNsZSBjeD0iMjIiIGN5PS"
+    "IyMCIgcj0iMi41Ii8+PGNpcmNsZSBjeD0iMTQiIGN5PSIzMiIgcj0iMi41Ii8+PGNpcmNsZS"
+    "BjeD0iMjQiIGN5PSI0NCIgcj0iMi41Ii8+PGNpcmNsZSBjeD0iNDIiIGN5PSIyMCIgcj0iMi"
+    "41Ii8+PGNpcmNsZSBjeD0iNTAiIGN5PSIzMiIgcj0iMi41Ii8+PGNpcmNsZSBjeD0iNDAiIG"
+    "N5PSI0NCIgcj0iMi41Ii8+PC9nPjxnIGZpbGw9IiNmZmZmZmYiPjxjaXJjbGUgY3g9IjMyIi"
+    "BjeT0iMzIiIHI9IjQuNSIvPjxwYXRoIGQ9Ik0zMSAzMWgydjJoLTJ6IiBmaWxsPSJub25lIi"
+    "BzdHJva2U9IiMwMDAwMDAiIHN0cm9rZS13aWR0aD0iMC44Ii8+PC9nPjwvc3ZnPg=="
+)
 
 st.set_page_config(
     page_title="NeuroRoute — TSP & NLP Studio",
-    page_icon="🧭",
+    page_icon=SVG_ICON,
     layout="wide",
     initial_sidebar_state="expanded",  # open the sidebar on load
 )
@@ -106,7 +128,7 @@ st.markdown(
 
       /* Typography */
       .bb-title {
-        font-size: 2rem;
+        font-size: 2.5rem;
         font-weight: 800;
         letter-spacing: -0.02em;
       }
@@ -181,8 +203,11 @@ THEMES = {
 # ---------------
 
 st.markdown(
-    """
-    <div class="bb-title">🧭 NeuroRoute</div>
+    f"""
+    <div class="bb-title" style="display: flex; align-items: center; gap: 10px;">
+        <img src="{SVG_ICON}" width="80" height="80" style="vertical-align: middle; filter: brightness(1);"/>
+        NeuroRoute
+    </div>
     <div class="bb-subtitle">🚀 TSP Algorithms + 🧠 NLP Text Classification</div>
     """,
     unsafe_allow_html=True,
@@ -243,14 +268,119 @@ if compact_ui:
     )
 
 
+# ---------------
+# City generation
+# ---------------
+# Available spatial distributions for generating TSP city coordinates.
+CITY_GEN_MODES = [
+    "Random uniform",
+    "Clustered",
+    "Circle",
+    "Grid",
+    "Gaussian blob",
+]
+
+NLP_DATASET_META = {
+    "20newsgroups_full": {
+        "desc": "Complete 20 Newsgroups dataset — all 20 categories.",
+        "n_classes": 20,
+        "train_docs": 11_314,
+        "test_docs": 7_532,
+        "classes": [
+            "alt.atheism", "comp.graphics", "comp.os.ms-windows.misc",
+            "comp.sys.ibm.pc.hardware", "comp.sys.mac.hardware", "comp.windows.x",
+            "misc.forsale", "rec.autos", "rec.motorcycles", "rec.sport.baseball",
+            "rec.sport.hockey", "sci.crypt", "sci.electronics", "sci.med",
+            "sci.space", "soc.religion.christian", "talk.politics.guns",
+            "talk.politics.mideast", "talk.politics.misc", "talk.religion.misc",
+        ],
+    },
+    "20newsgroups_medium": {
+        "desc": "20 Newsgroups — all 20 categories (medium variant).",
+        "n_classes": 20,
+        "train_docs": 11_314,
+        "test_docs": 7_532,
+        "classes": [
+            "alt.atheism", "comp.graphics", "comp.os.ms-windows.misc",
+            "comp.sys.ibm.pc.hardware", "comp.sys.mac.hardware", "comp.windows.x",
+            "misc.forsale", "rec.autos", "rec.motorcycles", "rec.sport.baseball",
+            "rec.sport.hockey", "sci.crypt", "sci.electronics", "sci.med",
+            "sci.space", "soc.religion.christian", "talk.politics.guns",
+            "talk.politics.mideast", "talk.politics.misc", "talk.religion.misc",
+        ],
+    },
+}
+
+
+def generate_cities(mode: str, *, n: int, seed: int, span: float = 1000.0) -> np.ndarray:
+    """Generate `n` 2D city coordinates using the chosen spatial distribution.
+
+    Returns an (n, 2) float array. The result is fully deterministic for a
+    given (mode, n, seed), so every run is reproducible.
+
+    Modes:
+      - "Random uniform": points spread uniformly over the whole area.
+      - "Clustered":      points grouped into a few random clusters.
+      - "Circle":         points placed around a ring with light jitter.
+      - "Grid":           points on a near-regular grid with light jitter.
+      - "Gaussian blob":  points concentrated around the center.
+    """
+    rng = np.random.default_rng(seed)
+
+    if mode == "Clustered":
+        n_clusters = max(2, min(8, n // 6))
+        centers = rng.uniform(0.15 * span, 0.85 * span, size=(n_clusters, 2))
+        labels = rng.integers(0, n_clusters, size=n)
+        spread = 0.06 * span
+        points = centers[labels] + rng.normal(0.0, spread, size=(n, 2))
+
+    elif mode == "Circle":
+        angles = np.sort(rng.uniform(0.0, 2.0 * np.pi, size=n))
+        radius = 0.40 * span
+        center = span / 2.0
+        jitter = rng.normal(0.0, 0.02 * span, size=(n, 2))
+        points = (
+            np.column_stack(
+                [center + radius * np.cos(angles), center + radius * np.sin(angles)]
+            )
+            + jitter
+        )
+
+    elif mode == "Grid":
+        side = int(np.ceil(np.sqrt(n)))
+        axis = np.linspace(0.10 * span, 0.90 * span, side)
+        grid_x, grid_y = np.meshgrid(axis, axis)
+        grid = np.column_stack([grid_x.ravel(), grid_y.ravel()])[:n]
+        points = grid + rng.normal(0.0, 0.015 * span, size=grid.shape)
+
+    elif mode == "Gaussian blob":
+        center = np.array([span / 2.0, span / 2.0])
+        points = center + rng.normal(0.0, 0.16 * span, size=(n, 2))
+
+    else:  # "Random uniform" (default)
+        points = rng.uniform(0.0, span, size=(n, 2))
+
+    return np.clip(points, 0.0, span).astype(float)
+
+
+def _format_dist_matrix(coords: np.ndarray) -> str:
+    """Return TSP input as text: first line N, then NxN rounded Euclidean distance matrix."""
+    n = int(coords.shape[0])
+    diff = coords[:, np.newaxis, :] - coords[np.newaxis, :, :]
+    dist = np.sqrt((diff ** 2).sum(axis=2))
+    lines = [str(n)]
+    for row in dist:
+        lines.append(" ".join(str(int(round(v))) for v in row))
+    return "\n".join(lines)
+
+
 def _tsp_params_ui(algo: str, *, n: int) -> dict:
     params = {}
     if algo == "BKT (Backtracking)":
-        st.info("⚠️ Backtracking can be expensive — use smaller N.")
-        bt_mode = st.selectbox("Backtracking mode", options=["first", "all"], index=0)
-        params["bt_mode"] = bt_mode
-        bt_time_limit = st.slider("Time limit (sec) — soft", min_value=1, max_value=60, value=15, step=1)
-        params["bt_time_limit"] = bt_time_limit
+        st.warning(
+            "⚠️ Backtracking is an exact method — cost grows factorially. "
+            "Keep N small (≤ 12). Runs for at least 120 seconds, returning the best cost found."
+        )
 
     elif algo == "HC (Hill Climbing)":
         restarts = st.slider("Restarts", 1, 80, value=30, step=1)
@@ -307,17 +437,100 @@ with tab_tsp:
         with col1:
             st.subheader("⚙️ TSP Settings")
             algo = st.selectbox("Algorithm", options=tsp_algos, index=0, format_func=lambda x: x)
-            n = st.slider("Number of cities (N)", min_value=4, max_value=18, value=10, step=1)
-            seed = st.number_input("Seed", min_value=0, value=42, step=1, key="tsp_seed")
+
+            data_source = st.radio(
+                "Input data",
+                options=["Random generation", "Predefined instance"],
+                index=0,
+                horizontal=True,
+            )
+
+            if data_source == "Predefined instance":
+                instance_key = st.selectbox(
+                    "TSPLIB instance",
+                    options=list(INSTANCES.keys()),
+                    help="Classic benchmark instances with real coordinates.",
+                )
+                inst = INSTANCES[instance_key]
+                tsp_coords = inst.coords
+                n = int(tsp_coords.shape[0])
+                seed = st.number_input("Seed (for algorithm)", min_value=0, value=42, step=1, key="tsp_seed")
+            else:
+                n = st.slider("Number of cities (N)", min_value=4, max_value=100, value=10, step=1)
+                gen_mode = st.selectbox(
+                    "City generation mode",
+                    options=CITY_GEN_MODES,
+                    index=0,
+                    help="How the city coordinates are laid out on the map.",
+                )
+                seed = st.number_input("Seed", min_value=0, value=42, step=1, key="tsp_seed")
+                tsp_coords = generate_cities(gen_mode, n=n, seed=int(seed))
+
+            # --- Input summary box ---
+            st.markdown("---")
+            if data_source == "Predefined instance":
+                optimal_str = f"{inst.optimal:,.0f}" if inst.optimal is not None else "unknown"
+                st.markdown(
+                    f"""
+                    <div style="background:rgba(99,102,241,0.13);border:1px solid rgba(99,102,241,0.35);
+                                border-radius:10px;padding:0.7rem 1rem;font-size:0.88rem;line-height:1.7;">
+                      <b>Input data:</b> Predefined instance (TSPLIB)<br>
+                      <b>Instance:</b> {inst.name}<br>
+                      <b>Number of cities (N):</b> {n}<br>
+                      <b>Known optimum:</b> {optimal_str}<br>
+                      <b>Algorithm seed:</b> {int(seed)}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f"""
+                    <div style="background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);
+                                border-radius:10px;padding:0.7rem 1rem;font-size:0.88rem;line-height:1.7;">
+                      <b>Input data:</b> Random generation<br>
+                      <b>Distribution mode:</b> {gen_mode}<br>
+                      <b>Number of cities (N):</b> {n}<br>
+                      <b>Seed:</b> {int(seed)}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
             params = _tsp_params_ui(algo, n=n)
+            params["coords"] = tsp_coords.tolist()
 
         with col2:
             st.subheader("📦 Output")
-            run_btn = st.button("Run", type="primary", use_container_width=True)
+            run_btn = st.button("Run", type="primary", width="stretch")
 
             if run_btn:
-                with st.spinner("Running… (may take time for BKT/GA)"):
-                    res = run_tsp(algo, n=n, seed=int(seed), **params)
+                if data_source != "Predefined instance":
+                    st.session_state["tsp_matrix"] = _format_dist_matrix(tsp_coords)
+
+                with st.status("⚙️ Running algorithm...", expanded=True) as status:
+
+                    def _bkt_progress(elapsed: float, remaining: float, nr_sol: int, best: int) -> None:
+                        status.update(
+                            label=(
+                                f"⏱️ {elapsed:.0f}s — "
+                                f"{nr_sol} solutions found — "
+                                f"current cost: {best}"
+                            ),
+                            state="running",
+                        )
+
+                    res = run_tsp(
+                        algo, n=n, seed=int(seed),
+                        log_fn=st.write,
+                        progress_fn=_bkt_progress,
+                        **params,
+                    )
+                    status.update(
+                        label=f"✅ Done — Cost: {res['cost']:.3f} | Time: {res['duration_s']:.4f}s",
+                        state="complete",
+                        expanded=False,
+                    )
 
                 m1, m2 = st.columns(2)
                 with m1:
@@ -329,32 +542,139 @@ with tab_tsp:
                     st.code(res["route_str"], language="text")
 
                 if res.get("plot") is not None:
-                    st.pyplot(res["plot"], clear_figure=True, use_container_width=True)
+                    st.pyplot(res["plot"], clear_figure=True, width="stretch")
 
                 if res.get("metrics"):
                     st.json(res["metrics"])
+
+        # --- Distance matrix display (full-width, inside the card) ---
+        st.markdown("---")
+        st.markdown("##### Input data — Distance matrix")
+        if data_source == "Predefined instance":
+            matrix_text = _format_dist_matrix(tsp_coords)
+            st.text_area(
+                "Distance matrix", value=matrix_text, height=200, disabled=True, key="tsp_matrix_area",
+                label_visibility="collapsed",
+                help="First line = N (number of cities). Followed by the NxN Euclidean distance matrix.",
+            )
+        elif "tsp_matrix" in st.session_state:
+            st.text_area(
+                "Distance matrix", value=st.session_state["tsp_matrix"], height=200, disabled=True, key="tsp_matrix_area",
+                label_visibility="collapsed",
+                help="First line = N. Followed by the NxN Euclidean distance matrix.",
+            )
+        else:
+            st.caption("Press **Run** to visualize the distance matrix of the generated instance.")
 
     st.divider()
 
     # Card 2: Quick comparison
     with st.container(border=True):
         st.subheader("⚡ Quick Comparison — All Algorithms")
-        col_l, col_r = st.columns([1, 1])
-        with col_l:
-            comp_n = st.slider("N for comparison", min_value=4, max_value=16, value=12, step=1)
-        with col_r:
-            comp_seed = st.number_input("Comparison seed", min_value=0, value=42, step=1)
 
-        run_comp = st.button("Compare 🤹‍♂️", key="comp", use_container_width=True)
+        comp_data_source = st.radio(
+            "Input data (comparison)",
+            options=["Random generation", "Predefined instance"],
+            index=0,
+            horizontal=True,
+            key="comp_data_src",
+        )
+
+        if comp_data_source == "Predefined instance":
+            comp_instance_key = st.selectbox(
+                "TSPLIB instance",
+                options=list(INSTANCES.keys()),
+                key="comp_instance",
+            )
+            comp_inst = INSTANCES[comp_instance_key]
+            comp_coords = comp_inst.coords
+            comp_n = int(comp_coords.shape[0])
+            comp_seed = st.number_input("Comparison seed", min_value=0, value=42, step=1)
+        else:
+            col_l, col_r = st.columns([1, 1])
+            with col_l:
+                comp_n = st.slider("N for comparison", min_value=4, max_value=100, value=12, step=1)
+            with col_r:
+                comp_seed = st.number_input("Comparison seed", min_value=0, value=42, step=1)
+            comp_gen_mode = st.selectbox(
+                "City generation mode",
+                options=CITY_GEN_MODES,
+                index=0,
+                key="comp_gen_mode",
+                help="How the city coordinates are laid out for the comparison.",
+            )
+            comp_coords = generate_cities(comp_gen_mode, n=int(comp_n), seed=int(comp_seed))
+
+        # --- Comparison input summary box ---
+        if comp_data_source == "Predefined instance":
+            comp_optimal_str = f"{comp_inst.optimal:,.0f}" if comp_inst.optimal is not None else "unknown"
+            st.markdown(
+                f"""
+                <div style="background:rgba(99,102,241,0.13);border:1px solid rgba(99,102,241,0.35);
+                            border-radius:10px;padding:0.7rem 1rem;font-size:0.88rem;line-height:1.7;">
+                  <b>Input data:</b> Predefined instance (TSPLIB)<br>
+                  <b>Instance:</b> {comp_inst.name}<br>
+                  <b>Number of cities (N):</b> {comp_n}<br>
+                  <b>Known optimum:</b> {comp_optimal_str}<br>
+                  <b>Algorithm seed:</b> {int(comp_seed)}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"""
+                <div style="background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);
+                            border-radius:10px;padding:0.7rem 1rem;font-size:0.88rem;line-height:1.7;">
+                  <b>Input data:</b> Random generation<br>
+                  <b>Distribution mode:</b> {comp_gen_mode}<br>
+                  <b>Number of cities (N):</b> {comp_n}<br>
+                  <b>Seed:</b> {int(comp_seed)}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        run_comp = st.button("Compare 🤹‍♂️", key="comp", width="stretch")
         if run_comp:
-            with st.spinner("Running comparison…"):
-                comp = run_tsp_comparison(n=int(comp_n), seed=int(comp_seed))
+            if comp_data_source != "Predefined instance":
+                st.session_state["comp_matrix"] = _format_dist_matrix(comp_coords)
+
+            with st.status("⚙️ Comparing algorithms...", expanded=True) as comp_status:
+                comp = run_tsp_comparison(
+                    n=int(comp_n), seed=int(comp_seed), coords=comp_coords.tolist(),
+                    log_fn=st.write,
+                )
+                comp_status.update(
+                    label=f"✅ Comparison complete — Winner: {comp['best']}",
+                    state="complete",
+                    expanded=False,
+                )
 
             col_1, col_2 = st.columns([1, 1])
             with col_1:
-                st.dataframe(comp["table"], use_container_width=True)
+                st.dataframe(comp["table"], width="stretch")
             with col_2:
-                st.pyplot(comp["plot"], clear_figure=True, use_container_width=True)
+                st.pyplot(comp["plot"], clear_figure=True, width="stretch")
+
+        # --- Comparison distance matrix display ---
+        st.markdown("---")
+        st.markdown("##### Input data — Distance matrix")
+        if comp_data_source == "Predefined instance":
+            comp_matrix_text = _format_dist_matrix(comp_coords)
+            st.text_area(
+                "Comparison distance matrix", value=comp_matrix_text, height=200, disabled=True, key="comp_matrix_area",
+                label_visibility="collapsed",
+                help="First line = N. Followed by the NxN Euclidean distance matrix.",
+            )
+        elif "comp_matrix" in st.session_state:
+            st.text_area(
+                "Comparison distance matrix", value=st.session_state["comp_matrix"], height=200, disabled=True, key="comp_matrix_area",
+                label_visibility="collapsed",
+                help="First line = N. Followed by the NxN Euclidean distance matrix.",
+            )
+        else:
+            st.caption("Press **Compare** to visualize the distance matrix of the generated instance.")
 
 
 with tab_nlp:
@@ -376,7 +696,7 @@ with tab_nlp:
             algo_choice = st.selectbox(
                 "Method",
                 options=[
-                    "Naive Bayes (TF-IDF implicite)",
+                    "Naive Bayes (default TF-IDF)",
                     "Comparison of classifiers",
                     "N-gram range (SVM)",
                     "Max features (SVM)",
@@ -395,6 +715,36 @@ with tab_nlp:
             mf_options = [None, 100, 500, 1000, 5000, 10000]
             max_features = st.selectbox("max_features", options=mf_options, index=0)
 
+            # --- NLP input summary box ---
+            st.markdown("---")
+            meta = NLP_DATASET_META.get(dataset, {})
+            classes_list = "".join(
+                f"<span style='display:inline-block;background:rgba(255,255,255,0.08);"
+                f"border-radius:5px;padding:1px 7px;margin:2px 3px 2px 0;"
+                f"font-size:0.78rem;'>{c}</span>"
+                for c in meta.get("classes", [])
+            )
+            ngram_display = f"({ng_min}, {ng_max})" if algo_choice == "Naive Bayes (default TF-IDF)" else "—"
+            mf_display = str(max_features) if max_features is not None else "None (all)"
+            st.markdown(
+                f"""
+                <div style="background:rgba(99,102,241,0.13);border:1px solid rgba(99,102,241,0.35);
+                            border-radius:10px;padding:0.75rem 1rem;font-size:0.88rem;line-height:1.8;">
+                  <b>Dataset:</b> {dataset}<br>
+                  <b>Description:</b> {meta.get('desc', '—')}<br>
+                  <b>Classes:</b> {meta.get('n_classes', '?')}&nbsp;&nbsp;
+                  <b>Train:</b> {meta.get('train_docs', '?'):,} docs&nbsp;&nbsp;
+                  <b>Test:</b> {meta.get('test_docs', '?'):,} docs<br>
+                  <b>Method:</b> {algo_choice}<br>
+                  <b>ngram_range:</b> {ngram_display}&nbsp;&nbsp;
+                  <b>max_features:</b> {mf_display}&nbsp;&nbsp;
+                  <b>Seed:</b> {int(seed)}<br>
+                  <div style="margin-top:0.4rem;"><b>Classes:</b><br>{classes_list}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
         with colB:
             st.subheader("📊 Output")
             out_tabs = st.tabs(["Output", "Report", "Plots"])
@@ -405,12 +755,12 @@ with tab_nlp:
                 with out_tabs[0]:
                     if res.get("task") == 2:
                         st.subheader("Results table")
-                        st.dataframe(res.get("table", []), use_container_width=True)
+                        st.dataframe(res.get("table", []), width="stretch")
                         st.success(f"🏆 Best: {res.get('best')} | Accuracy={res.get('best_accuracy')}")
                     elif res.get("task") in (3, 4):
                         key = "ngram_range" if res.get("task") == 3 else "max_features"
                         st.subheader(f"Results table ({key})")
-                        st.dataframe(res.get("table", []), use_container_width=True)
+                        st.dataframe(res.get("table", []), width="stretch")
                     elif res.get("task") == 5:
                         if res.get("error"):
                             st.error(res["error"])
@@ -428,34 +778,39 @@ with tab_nlp:
 
                 with out_tabs[2]:
                     if res.get("plot_cm") is not None:
-                        st.pyplot(res["plot_cm"], clear_figure=True, use_container_width=True)
+                        st.pyplot(res["plot_cm"], clear_figure=True, width="stretch")
                     if res.get("plot") is not None:
-                        st.pyplot(res["plot"], clear_figure=True, use_container_width=True)
+                        st.pyplot(res["plot"], clear_figure=True, width="stretch")
                     if res.get("heatmap") is not None:
-                        st.pyplot(res["heatmap"], clear_figure=True, use_container_width=True)
+                        st.pyplot(res["heatmap"], clear_figure=True, width="stretch")
 
             mapping = {
-                "Naive Bayes (TF-IDF implicite)": 1,
+                "Naive Bayes (default TF-IDF)": 1,
                 "Comparison of classifiers": 2,
                 "N-gram range (SVM)": 3,
                 "Max features (SVM)": 4,
                 "Grid Search ngram × max_features (SVM)": 5,
             }
 
-            btn_run = st.button(" Run selected", type="primary", use_container_width=True, key="run_selected")
-            btn_all = st.button(" Run ALL (Task 1..5)", use_container_width=True, key="all")
+            btn_run = st.button(" Run selected", type="primary", width="stretch", key="run_selected")
+            btn_all = st.button(" Run ALL (Task 1..5)", width="stretch", key="all")
 
             if btn_all:
-                with st.spinner("Running all tasks… (may take time)"):
+                with st.status("⚙️ Running all tasks (1–5)…", expanded=True) as nlp_status_all:
                     for task_id in [1, 2, 3, 4, 5]:
-                        res = run_lab10_task(task_id=task_id, dataset=dataset, no_plots=no_plots, seed=int(seed))
+                        st.write(f"▶️ Task {task_id}/5…")
+                        res = run_lab10_task(
+                            task_id=task_id, dataset=dataset,
+                            no_plots=no_plots, seed=int(seed), log_fn=st.write,
+                        )
                         _render_result(res)
+                    nlp_status_all.update(
+                        label="✅ All tasks complete!", state="complete", expanded=False
+                    )
 
             elif btn_run:
                 task_id = mapping[algo_choice]
-                st.info(f"Processing NLP… (task_id={task_id})")
-
-                with st.spinner("Training / evaluating classifier (may take time)…"):
+                with st.status(f"⚙️ Running: {algo_choice}…", expanded=True) as nlp_status:
                     if task_id == 1:
                         res = run_nlp_experiment(
                             dataset=dataset,
@@ -464,12 +819,17 @@ with tab_nlp:
                             max_features=max_features,
                             no_plots=no_plots,
                             seed=int(seed),
+                            log_fn=st.write,
                         )
                         res = {**res, "task": 1}
                     else:
-                        res = run_lab10_task(task_id=task_id, dataset=dataset, no_plots=no_plots, seed=int(seed))
-
-                st.success("✅ Done")
+                        res = run_lab10_task(
+                            task_id=task_id, dataset=dataset,
+                            no_plots=no_plots, seed=int(seed), log_fn=st.write,
+                        )
+                    acc = res.get("accuracy") or res.get("best_accuracy")
+                    label = f"✅ Done — Accuracy: {acc:.4f}" if acc else "✅ Done!"
+                    nlp_status.update(label=label, state="complete", expanded=False)
                 _render_result(res)
 
 # ---------------
