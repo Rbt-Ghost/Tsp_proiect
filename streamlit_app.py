@@ -154,6 +154,8 @@ st.markdown(
       }
       .bb-footer h4 { margin: 0 0 0.35rem 0; font-size: 1rem; color: rgba(255,255,255,0.92); }
       .bb-footer .muted { color: rgba(255,255,255,0.68); }
+      .bb-footer a { text-decoration: none; color: inherit; display: block; }
+      .bb-footer a:hover h4, .bb-footer a:hover .muted { color: rgba(255,255,255,1); }
 
       /* Improve plot containers a bit */
       .stPlotlyChart, .stPyplot {
@@ -896,8 +898,10 @@ with tab_nlp:
 st.markdown(
     """
     <div class="bb-footer">
-      <h4>Eroare 404</h4>
-      <div class="muted">Ilisescu Adrian Corneliu, Nistor Robert Cristian, Ilisoi Fineas</div>
+      <a href="https://github.com/Rbt-Ghost/Tsp_proiect" target="_blank" rel="noopener noreferrer">
+        <h4>Eroare 404</h4>
+        <div class="muted">Ilisescu Adrian Corneliu, Nistor Robert Cristian, Ilisoi Fineas</div>
+      </a>
     </div>
     """,
     unsafe_allow_html=True,
